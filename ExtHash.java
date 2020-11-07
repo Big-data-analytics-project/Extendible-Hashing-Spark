@@ -13,7 +13,7 @@ import scala.Tuple2;
 public class  ExtHash<K,V> implements Serializable{
     static class Bucket<K, V> implements Serializable {
         int localdepth = 0;
-        static int bucket_size = 10;
+        static int bucket_size = 3;
         private MyHashMap bucket = new MyHashMap<K, V>();
         List<K> keyset = new ArrayList<K>();
 
@@ -37,10 +37,12 @@ public class  ExtHash<K,V> implements Serializable{
         public int getSize() {
             return bucket_size;
         }
+        
+    
 
         @Override
         public String toString() {
-            return "{ bucket=" + bucket + ", localdepth=" + localdepth + "}\n";
+        	return "{ bucket=" + bucket + ",size= " + bucket.getSize() + ", localdepth=" + localdepth + "}\n";
         }
     }
 
@@ -73,17 +75,34 @@ public class  ExtHash<K,V> implements Serializable{
         return b;
     }
 
-     public V getValue(K key) {
-        String hashcode = hashcode(key);
-        long hd = Long.parseLong(hashcode);
-        Bucket<K, V> b = bucketlist.get((int) (hd & (1 << globaldepth.get()) - 1));
-        for (int i = 0; i < b.getSize(); i++) {
-            if (b.bucket.getData(key) != null) {
-                return (V) b.get(key); //(V) is called casting.
-            }
-        }
-        return null;
-    }
+      public V getValue(K key) {
+         String hashcode = hashcode(key);
+         BigInteger hd = new BigInteger(hashcode);
+         hd = (hd.and(BigInteger.valueOf(1 << globaldepth.get()).subtract(BigInteger.valueOf(1))));
+         Bucket<K, V> b = bucketlist.get(hd.intValue());
+         for (int i = 0; i < b.getSize(); i++) {
+             if (b.bucket.getData(key) != null) {
+                 return (V) b.get(key); //(V) is called casting.
+             }
+         }
+         return null;
+     }
+      
+      public void remove(K key) {
+          String hashcode = hashcode(key);
+          BigInteger hd = new BigInteger(hashcode);
+          hd = (hd.and(BigInteger.valueOf(1 << globaldepth.get()).subtract(BigInteger.valueOf(1))));
+          Bucket<K, V> b = bucketlist.get(hd.intValue());
+          for (int i = 0; i < b.getSize(); i++) {
+              if (b.bucket.getData(key) != null) {
+                  
+            	  b.bucket.remove(key);
+                  
+              }
+          }
+      }
+      
+     public void elements() {System.out.println(bucketlist.size());};
 
      public void put(K key, V value) {
         Bucket<K, V> b = getBucket(key);
@@ -172,16 +191,31 @@ public class  ExtHash<K,V> implements Serializable{
         JavaRDD<String> textFile = sc.textFile("cars.csv");
         
         
-        //JavaPairRDD lines = textFile.mapToPair(x -> Arrays.asList(x.split(";")));
-        JavaPairRDD lines = textFile.mapToPair(x -> new Tuple2(x.split(";")[0],Arrays.toString(Arrays.copyOfRange(x.split(";"), 1, x.split(";").length))));
-        lines.foreach( new VoidFunction<Tuple2<String,String>>() {
-
-			@Override
-			public void call(Tuple2 t) throws Exception {
-				eh.put((String)t._1,(String)t._2);
-				System.out.println(eh.toString());
-				}
-			} );
+        //Assign DataSet to Java Pair RDD with Keys and values
+        JavaPairRDD<String,String> lines = textFile.mapToPair(x -> new Tuple2(x.split(";")[0],Arrays.toString(Arrays.copyOfRange(x.split(";"), 1, x.split(";").length))));
+       
+        
+        // Insert all data set into hashtable
+        for (Tuple2<String, String> string : lines.collect()) {
+        	eh.put(string._1,string._2);
+        	}
+        // Print of hashtable after insertions are done
+        System.out.println(eh.toString());
+        
+        //Access a value in the hashtable
+        System.out.print(eh.getValue("Toyota Corolla"));
+        
+        //Remove all data in the hashtable
+        for (Tuple2<String, String> string : lines.collect()) {
+        	eh.remove(string._1);
+        	}
+        
+        //print hashtable afte removals
+        System.out.println(eh.toString());
+        
+        
+        
+        
         
         sc.close();
 
@@ -212,8 +246,5 @@ public class  ExtHash<K,V> implements Serializable{
         */
     }
 }
-
-//Car;MPG;Cylinders;Displacement;Horsepower;Weight;Acceleration;Model;Origin
-//STRING;DOUBLE;INT;DOUBLE;DOUBLE;DOUBLE;DOUBLE;INT;CAT
 
 

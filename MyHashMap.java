@@ -4,10 +4,11 @@ import java.util.*;
 
 public class MyHashMap<K,V> implements Serializable{
     private List<Data<K,V>> datalist;
-
+    int size;
     //constructor
     public MyHashMap(){
         this.datalist=new ArrayList<Data<K,V>>();
+        
     }
 
     public void addData(Data<K,V> x){
@@ -19,6 +20,7 @@ public class MyHashMap<K,V> implements Serializable{
             }
         }
         datalist.add(x);
+        size++;
     }
 
     public V getData(K key){ //return data based on key
@@ -29,6 +31,16 @@ public class MyHashMap<K,V> implements Serializable{
             }
         }
         return null;
+    }
+    
+    public void remove(K key){ //return data based on key
+        for(int i=0; i<this.datalist.size(); i++){
+            Data temp = datalist.get(i);
+            if (key.equals(temp.key)) {
+                this.datalist.remove(temp);
+                size--;
+            }
+        }
     }
 
     public int getSize(){
