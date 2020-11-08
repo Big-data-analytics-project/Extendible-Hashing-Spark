@@ -8,6 +8,8 @@ import java.io.*;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.*;
 import org.apache.spark.api.java.function.*;
+import org.apache.spark.broadcast.Broadcast;
+
 import scala.Tuple2;
 
 public class  ExtHash<K,V> implements Serializable{
@@ -194,7 +196,7 @@ public class  ExtHash<K,V> implements Serializable{
         //Assign DataSet to Java Pair RDD with Keys and values
         JavaPairRDD<String,String> lines = textFile.mapToPair(x -> new Tuple2(x.split(";")[0],Arrays.toString(Arrays.copyOfRange(x.split(";"), 1, x.split(";").length))));
        
-        
+        /*
         // Insert all data set into hashtable
         for (Tuple2<String, String> string : lines.collect()) {
         	eh.put(string._1,string._2);
@@ -212,9 +214,58 @@ public class  ExtHash<K,V> implements Serializable{
         
         //print hashtable afte removals
         System.out.println(eh.toString());
+        */
         
+        JavaRDD<Long> times_insert = lines.map(new Function<Tuple2<String,String>,Long>(){
+
+			@Override
+			public Long call(Tuple2<String, String> v1) throws Exception {
+
+				long start = System.nanoTime();
+				eh.put((String)v1._1,(String)v1._2);
+				long finish = System.nanoTime();
+				
+				return finish-start;
+				
+			}
+        	
+        });
+/*
+        JavaRDD<Long> times_access = lines.map(new Function<Tuple2<String,String>,Long>(){
+
+			@Override
+			public Long call(Tuple2<String, String> v1) throws Exception {
+				eh.put((String)v1._1,(String)v1._2);
+				
+				Long start = System.nanoTime();
+				eh.getValue((String)v1._1);
+				Long finish = System.nanoTime();
+				
+				return finish-start;
+			}
+        	
+        });
+        */
         
-        
+        JavaRDD<Long> times_insert2 = lines.map(new Function<Tuple2<String,String>,Long>(){
+
+			@Override
+			public Long call(Tuple2<String, String> v1) throws Exception {
+
+				long start = System.nanoTime();
+				eh.put((String)v1._1,(String)v1._2);
+				long finish = System.nanoTime();
+				
+				return finish-start;
+				
+			}
+        	
+        });
+
+
+        //System.out.println(times_access.collect());
+
+
         
         
         sc.close();
