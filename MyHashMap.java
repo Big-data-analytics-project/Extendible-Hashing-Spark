@@ -1,20 +1,19 @@
 import java.io.Serializable;
 import java.util.*;
 
-
 public class MyHashMap<K,V> implements Serializable{
     private List<Data<K,V>> datalist;
     int size;
     //constructor
     public MyHashMap(){
         this.datalist=new ArrayList<Data<K,V>>();
-        
     }
 
     public void addData(Data<K,V> x){
         for(int i=0; i<datalist.size(); i++){
             Data temp=datalist.get(i);
-            if(temp.key.equals(x.key)){ //check if the same key exists before adding it.
+            //check if the same key exists before adding it.
+            if(temp.key.equals(x.key)){
                 datalist.remove(i);
                 break;
             }

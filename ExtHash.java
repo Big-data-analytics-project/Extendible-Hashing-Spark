@@ -1,21 +1,17 @@
 // << +1 || >> -1
 import java.math.BigInteger;
-
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.io.*;
-
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.*;
 import org.apache.spark.api.java.function.*;
-import org.apache.spark.broadcast.Broadcast;
-
 import scala.Tuple2;
 
 public class  ExtHash<K,V> implements Serializable{
     static class Bucket<K, V> implements Serializable {
         int localdepth = 0;
-        static int bucket_size = 3;
+        static int bucket_size = 500;
         private MyHashMap bucket = new MyHashMap<K, V>();
         List<K> keyset = new ArrayList<K>();
 
@@ -23,7 +19,6 @@ public class  ExtHash<K,V> implements Serializable{
             // put data in bucket and create keyset
             if (!(keyset.contains(x.key))) {
                 keyset.add(x.key);
-                //System.out.println(keyset);
             }
             bucket.addData(x);
         }
@@ -39,8 +34,6 @@ public class  ExtHash<K,V> implements Serializable{
         public int getSize() {
             return bucket_size;
         }
-        
-    
 
         @Override
         public String toString() {
@@ -56,21 +49,15 @@ public class  ExtHash<K,V> implements Serializable{
     }
 
      public static <K> String hashcode(K k) {
-        // convert key to binary and return it. for now it only work with integer keys.
-        // if we will have string keys as well we have to find a way to convert string to integers
+        // convert key to binary and return it.
         String hashcode = Integer.toBinaryString(k.hashCode());
-
-        System.out.println(k + "," + hashcode);
+        //System.out.println(k + "," + hashcode);
         return hashcode;
     }
 
      public Bucket<K, V> getBucket(K key) { // get bucket based on hashcode(key)
         String hashcode = hashcode(key);
         BigInteger hd = new BigInteger(hashcode);
-        //System.out.println(hd & (1 << globaldepth.get()) - 1);
-        //System.out.println(hd);
-        //Bucket<K,V> b = bucketlist.get((int) (hd & (1 << globaldepth.get()) - 1));
-        //System.out.println(hd);
         hd = (hd.and(BigInteger.valueOf(1 << globaldepth.get()).subtract(BigInteger.valueOf(1))));
         //System.out.println(hd);
         Bucket<K, V> b = bucketlist.get(hd.intValue());
@@ -97,9 +84,7 @@ public class  ExtHash<K,V> implements Serializable{
           Bucket<K, V> b = bucketlist.get(hd.intValue());
           for (int i = 0; i < b.getSize(); i++) {
               if (b.bucket.getData(key) != null) {
-                  
             	  b.bucket.remove(key);
-                  
               }
           }
       }
@@ -129,15 +114,10 @@ public class  ExtHash<K,V> implements Serializable{
             for (K key2 : b.keyset) {
                 V value2 = (V) b.bucket.getData(key2);
                 Data<K, V> d2 = new Data<K, V>(key2, value2);
-
-                //long hd = Long.parseLong(hashcode(key2));
-                //int hashcode =(int) (hd & ((1 << globaldepth.get())) - 1);
-
                 String hashcode = hashcode(key2);
                 BigInteger hd = new BigInteger(hashcode);
                 hd = (hd.and(BigInteger.valueOf(1 << globaldepth.get()).subtract(BigInteger.valueOf(1))));
-
-                //System.out.println(hd);
+                 //System.out.println(hd);
                 if (hd.or(BigInteger.valueOf(1 << b.localdepth)).equals(hd)) {
                     b2.put(d2);
                 } else {
@@ -175,126 +155,46 @@ public class  ExtHash<K,V> implements Serializable{
                 "globaldepth=" + globaldepth +
                 ",\n " + bucketlist + '}';
     }
-    
-   
-    
-
 
     public static void main(String[] args) throws FileNotFoundException {
-        //this example is from anadiotis slides..
-        //when we have the dataset we can split it to as many threads we want
-        //we have to test the code a bit more
-        //overleaf (?)
-    	
-    	
+        //initialize spark environment.
         SparkConf conf = new SparkConf().setMaster("local[*]").setAppName("SparkFileSumApp");
         JavaSparkContext sc = new JavaSparkContext(conf);
         ExtHash<String,String> eh = new ExtHash<String,String>();
-        JavaRDD<String> textFile = sc.textFile("cars.csv");
-        
-        
+        JavaRDD<String> textFile = sc.textFile("911.csv");
+
         //Assign DataSet to Java Pair RDD with Keys and values
-        JavaPairRDD<String,String> lines = textFile.mapToPair(x -> new Tuple2(x.split(";")[0],Arrays.toString(Arrays.copyOfRange(x.split(";"), 1, x.split(";").length))));
-       
-        /*
-        // Insert all data set into hashtable
-        for (Tuple2<String, String> string : lines.collect()) {
-        	eh.put(string._1,string._2);
-        	}
-        // Print of hashtable after insertions are done
-        System.out.println(eh.toString());
-        
-        //Access a value in the hashtable
-        System.out.print(eh.getValue("Toyota Corolla"));
-        
-        //Remove all data in the hashtable
-        for (Tuple2<String, String> string : lines.collect()) {
-        	eh.remove(string._1);
-        	}
-        
-        //print hashtable afte removals
-        System.out.println(eh.toString());
-        */
-        
-        JavaRDD<Long> times_insert = lines.map(new Function<Tuple2<String,String>,Long>(){
+        JavaPairRDD<String,String> lines = textFile.mapToPair(x -> new Tuple2(x.split(",")[2], x.split(",")[4]));
 
+        //here we measure the time that 605000 data need to insert and then we measure the access time.
+        List<Tuple2<String, String>> temp = lines.take(605000);
+        JavaRDD<Tuple2<String, String>> first_lines = sc.parallelize(temp);
+
+        long start = System.nanoTime();
+        first_lines.map(new Function<Tuple2<String, String>, String>() {
 			@Override
-			public Long call(Tuple2<String, String> v1) throws Exception {
-
-				long start = System.nanoTime();
+			public String call(Tuple2<String, String> v1) throws Exception {
 				eh.put((String)v1._1,(String)v1._2);
-				long finish = System.nanoTime();
-				
-				return finish-start;
-				
+				return null;
 			}
-        	
         });
-/*
-        JavaRDD<Long> times_access = lines.map(new Function<Tuple2<String,String>,Long>(){
 
+        long finish = System.nanoTime();
+        System.out.println(finish - start);
+
+        JavaRDD<Long> times_access = first_lines.map(new Function<Tuple2<String,String>,Long>(){
 			@Override
 			public Long call(Tuple2<String, String> v1) throws Exception {
 				eh.put((String)v1._1,(String)v1._2);
-				
 				Long start = System.nanoTime();
 				eh.getValue((String)v1._1);
 				Long finish = System.nanoTime();
-				
 				return finish-start;
 			}
-        	
         });
-        */
-        
-        JavaRDD<Long> times_insert2 = lines.map(new Function<Tuple2<String,String>,Long>(){
-
-			@Override
-			public Long call(Tuple2<String, String> v1) throws Exception {
-
-				long start = System.nanoTime();
-				eh.put((String)v1._1,(String)v1._2);
-				long finish = System.nanoTime();
-				
-				return finish-start;
-				
-			}
-        	
-        });
-
-
-        //System.out.println(times_access.collect());
-
-
-        
-        
+        Long total_accesstime = times_access.reduce((a, b) -> a+b);
+        System.out.println(total_accesstime);
         sc.close();
-
-        
-        
-
-        //PairFunction<String, String, String> keyData =
-        // new PairFunction<String, String, String>() {
-        // public Tuple2<String, String> call(String x) {
-        // return new Tuple2(x.split(" ")[0], x);
-        // }
-        //};
-        //JavaPairRDD<String, String> pairs = lines.mapToPair(keyData);
-        /*
-        JavaPairRDD<String, String> pair = textFile.map(new PairFunction <String, String, String[]>() {
-            @Override
-            public Tuple2<String, String[]> call(String x){
-                String sep = ";";
-                String [] temp = x.split(sep);
-                String carname = temp[0];
-                //List<String> values =  Arrays.asList(temp);
-                //values.remove(0);
-
-                return new Tuple2 (carname,temp);
-            }
-        });
-        System.out.println(pair.first());
-        */
     }
 }
 
